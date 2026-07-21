@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Malla Curricular - Ing. en Recursos Naturales UC</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap');
+        body { font-family: 'Quicksand', sans-serif; background-color: #fdf2f8; }
+        .planner-grid { display: grid; grid-template-columns: repeat(11, auto); gap: 0.5rem; align-items: start; }
+        .subject-box { background: white; border-left: 4px solid #db2777; width: 135px; padding: 0.5rem; height: 175px; display: flex; flex-direction: column; justify-content: space-between; transition: all 0.2s; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); position: relative; }
+        .subject-box.aprobado { border-left-color: #22c55e; background-color: #dcfce7; }
+        .subject-box.reprobado { border-left-color: #ef4444; background-color: #fee2e2; }
+        .subject-box.bloqueado { opacity: 0.4; cursor: not-allowed; border-left-color: #94a3b8; background-color: #f1f5f9; }
+        .cell-input { border: none; background: transparent; width: 100%; font-size: 0.70rem; font-weight: 700; color: black; outline: none; text-align: center; }
+        .cell-code { font-size: 0.65rem; color: black; background: transparent; border: none; width: 100%; outline: none; text-align: center; }
+        .nota-btn { font-size: 10px; background: #db2777; color: white; padding: 3px 6px; border-radius: 4px; cursor: pointer; border: none; z-index: 10; font-weight: bold; width: 100%; margin-top: auto; }
+        .divider-col { writing-mode: vertical-rl; transform: rotate(180deg); background: #db2777; color: white; font-weight: bold; padding: 0.5rem 0; font-size: 0.7rem; border-radius: 4px; height: 98%; width: 25px; display: flex; align-items: center; justify-content: center; letter-spacing: 1px; }
+    </style>
+</head>
+<body class="p-4">
+    <header class="text-center mb-6">
+        <h1 class="text-3xl font-bold text-[#db2777] uppercase tracking-tight">ING. EN RECURSOS NATURALES</h1>
+        <div class="mt-4 flex flex-wrap gap-4 justify-center items-center">
+            <div class="p-3 bg-white rounded-xl shadow-md border-2 border-[#db2777]">
+                <span class="font-bold text-gray-700">PPA: </span>
+                <span id="ppa-value" class="text-2xl font-bold text-[#db2777]">0.00</span>
+            </div>
+            <button onclick="saveProgress()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold shadow transition">Guardar Progreso</button>
+            <button onclick="loadProgress()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold shadow transition">Cargar Progreso</button>
+            <button onclick="resetProgress()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold shadow transition">Reiniciar Malla</button>
+        </div>
+    </header>
+
+    <div class="max-w-[99vw] mx-auto overflow-x-auto pb-10">
+        <div class="planner-grid" id="planner"></div>
+    </div>
+
+    <div id="nota-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-2xl w-80 shadow-2xl">
+            <h2 id="modal-title" class="font-bold text-lg mb-3 text-gray-800 text-center">Gestionar Notas</h2>
+            <div id="intentos-list" class="max-h-48 overflow-y-auto mb-4 space-y-2 pr-1"></div>
+            <div class="flex gap-2 mb-3">
+                <input type="number" id="new-nota" step="0.1" min="1.0" max="7.0" placeholder="Ej: 5.5" class="w-full p-2 border rounded-lg text-center font-bold">
+                <button onclick="addIntento()" class="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-lg font-bold transition">Añadir</button>
+            </div>
+            <button onclick="closeModal()" class="w-full bg-gray-500 hover:bg-gray-600 text-white py-2 rounded-lg font-bold transition">Cerrar</button>
+        </div>
+    </div>
+
+    <script>
+        const data = {
+            "I": [
+                ["Precálculo", "MAT1000", 10, []],
+                ["Química", "QIM201G", 15, []],
+                ["Biología y Diversidad Animal", "BIO227E", 10, []],
+                ["Intro. a la Geografía Física General", "GEO625", 10, []],
+                ["Desafíos de la IRN", "REN101", 5, []],
+                ["Integridad Académica en la UC", "VRA4000", 0, []],
+                ["Español", "VRA100C", 0, []],
+                ["English Test", "VRA2000", 0, []]
+            ],
+            "II": [
+                ["Cálculo I", "MAT1100", 10, ["MAT1000"]],
+                ["Física para Ciencias", "FIS109C", 10, []],
+                ["Botánica", "AGL101", 10, []],
+                ["Sustentabilidad", "SUS1000", 10, []],
+                ["Filosofía para qué?", "FIL2001", 10, []]
+            ],
+            "III": [
+                ["Cálculo II", "MAT1220", 10, ["MAT1100"]],
+                ["Estadística", "AGL201", 10, ["MAT1100"]],
+                ["Fundamentos de la Ecología y Evolución", "BIO108A", 10, []],
+                ["Introducción a la Economía", "EAE105A", 10, []],
+                ["Formación Teológica", "FTL1000", 10, []]
+            ],
+            "IV": [
+                ["Climatología", "REN201", 10, ["MAT1000", "FIS109C"]],
+                ["Introducción a la Programación", "IIC1103", 10, []],
+                ["Sistemas Socioambientales", "REN202", 10, ["BIO108A"]],
+                ["Introducción a la Economía Ambiental", "AGE206", 10, ["EAE105A"]],
+                ["Formación General", "FG1001", 10, []]
+            ],
+            "V": [
+                ["Geomática", "AGR205", 10, ["MAT1000"]],
+                ["Geología y Suelo", "REN203", 10, ["QIM201G", "GEO625"]],
+                ["Metodología de la Investigación", "REN225", 10, ["AGL201", "MAT1220", "IIC1103"]],
+                ["Formación General", "FG1002", 10, []],
+                ["Formación General", "FG1003", 10, []]
+            ],
+            "VI": [
+                ["Derecho Ambiental", "DER201E", 10, ["REN202"]],
+                ["CMD", "AGL251", 10, []],
+                ["Evaluación de Impacto Ambiental", "AGR307", 10, ["AGE206", "GEO625"]],
+                ["Política Ambiental de los Recursos Naturales", "REN220", 10, ["AGE206"]],
+                ["Formación General", "FG1004", 10, []]
+            ],
+            "VII": [
+                ["MINOR", "M1", 10, []],
+                ["MINOR", "M2", 10, []],
+                ["MINOR", "M3", 10, []],
+                ["Formación General", "FG1005", 10, []],
+                ["Formación General", "FG1006", 10, []]
+            ],
+            "VIII": [
+                ["Mod. Capstone", "REN235", 10, ["AGL251", "AGR205", "REN203", "IIC1103"]],
+                ["MINOR", "M4", 10, []],
+                ["MINOR", "M5", 10, []],
+                ["A. Sustentabilidad", "REN305", 10, ["DER201E"]],
+                ["Ética para IRN", "ETI1002", 5, ["DER201E"]],
+                ["Taller de Práctica", "REN290", 5, ["REN235"]]
+            ],
+            "IX": [
+                ["Análisis de Riesgo Ambiental", "ICS2023", 10, ["AGR307"]],
+                ["Conservación Ambiental y Participación Comunitaria", "GEO2916", 10, []],
+                ["Evaluación de Proyectos en RRNN", "REN310", 10, ["AGR307"]],
+                ["Liderazgo, Innovación y Emprendimiento en RRNN", "REN320", 10, ["REN235", "AGE206"]],
+                ["Administración para Ingenieros de RRNN", "REN325", 10, ["REN235"]]
+            ],
+            "X": [
+                ["Gestión Ambiental Empresarial", "REN308", 10, ["REN235"]],
+                ["Tecnologías Digitales en RRNN", "REN335", 10, []],
+                ["Proyecto de Título", "REN390", 30, ["ETI1002"]]
+            ]
+        };
+
+        const state = {};       
+        const attempts = {};    
+        let activeSigla = null; 
+
+        function getCredits(sigla) {
+            for (let sem in data) {
+                let m = data[sem].find(i => i[1] === sigla);
+                if (m) return m[2];
+            }
+            return 10;
+        }
+
+        function checkBlocked(sigla, semIndex, prereqs) {
+            if (semIndex >= 8) {
+                const vraReqs = ["VRA4000", "VRA100C", "VRA2000"];
+                if (vraReqs.some(r => state[r] !== 'aprobado')) return true;
+
+                const fgList = ["FG1001", "FG1002", "FG1003", "FG1004", "FG1005", "FG1006"];
+                if (fgList.some(r => state[r] !== 'aprobado')) return true;
+
+                if (state["FIL2001"] !== 'aprobado' || state["FTL1000"] !== 'aprobado') return true;
+
+                if (semIndex === 8) {
+                    for (let s = 0; s < 8; s++) {
+                        for (let item of data[Object.keys(data)[s]]) {
+                            if (state[item[1]] !== 'aprobado') return true;
+                        }
+                    }
+                }
+                if (semIndex === 9) {
+                    for (let s = 0; s < 9; s++) {
+                        for (let item of data[Object.keys(data)[s]]) {
+                            if (state[item[1]] !== 'aprobado') return true;
+                        }
+                    }
+                }
+            }
+
+            if (prereqs && prereqs.length > 0) {
+                if (prereqs.some(p => state[p] !== 'aprobado')) return true;
+            }
+
+            return false;
+        }
+
+        function updateAll() {
+            let totalWeighted = 0;
+            let totalCredits = 0;
+
+            document.querySelectorAll('.subject-box').forEach(box => {
+                const sigla = box.dataset.sigla;
+                const semIndex = parseInt(box.dataset.semIndex);
+                const prereqs = JSON.parse(box.dataset.prereqs);
+                
+                let isBlocked = checkBlocked(sigla, semIndex, prereqs);
+                
+                if (isBlocked && state[sigla] === 'aprobado') {
+                    state[sigla] = '';
+                }
+
+                box.className = `subject-box rounded-xl border border-pink-200 ${state[sigla] || ''} ${isBlocked ? 'bloqueado' : ''}`;
+            });
+
+            Object.entries(attempts).forEach(([sigla, notas]) => {
+                const creds = getCredits(sigla);
+                notas.forEach(nota => {
+                    totalWeighted += (nota * creds);
+                    totalCredits += creds;
+                });
+            });
+
+            document.getElementById('ppa-value').innerText = totalCredits > 0 ? (totalWeighted / totalCredits).toFixed(2) : "0.00";
+        }
+
+        function openModal(sigla, event) {
+            if(event) event.stopPropagation();
+            activeSigla = sigla;
+            renderIntentosList();
+            document.getElementById('nota-modal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('nota-modal').classList.add('hidden');
+            document.getElementById('new-nota').value = '';
+        }
+
+        function renderIntentosList() {
+            const list = document.getElementById('intentos-list');
+            list.innerHTML = '';
+            const notas = attempts[activeSigla] || [];
+            
+            if(notas.length === 0) {
+                list.innerHTML = `<p class="text-xs text-gray-500 text-center py-2">No hay notas registradas para este ramo.</p>`;
+                return;
+            }
+
+            notas.forEach((n, i) => {
+                list.innerHTML += `
+                    <div class="flex justify-between items-center p-2 bg-gray-50 rounded-lg border border-gray-200">
+                        <span class="text-sm font-bold text-gray-700">Intento ${i + 1}: <span class="text-pink-600">${n.toFixed(1)}</span></span>
+                        <button onclick="deleteIntento(${i})" class="text-red-500 hover:text-red-700 font-bold px-2 py-1 text-xs bg-red-50 rounded">Eliminar</button>
+                    </div>`;
+            });
+        }
+
+        function addIntento() {
+            const val = parseFloat(document.getElementById('new-nota').value);
+            if (!isNaN(val) && val >= 1.0 && val <= 7.0) {
+                if (!attempts[activeSigla]) attempts[activeSigla] = [];
+                attempts[activeSigla].push(val);
+                document.getElementById('new-nota').value = '';
+                renderIntentosList();
+                updateAll();
+            } else {
+                alert("Por favor ingresa una nota válida entre 1.0 y 7.0");
+            }
+        }
+
+        function deleteIntento(idx) {
+            if (attempts[activeSigla]) {
+                attempts[activeSigla].splice(idx, 1);
+                if (attempts[activeSigla].length === 0) delete attempts[activeSigla];
+                renderIntentosList();
+                updateAll();
+            }
+        }
+
+        function saveProgress() {
+            const customTexts = {};
+            document.querySelectorAll('.cell-input, .cell-code').forEach(el => {
+                customTexts[el.dataset.id] = el.value;
+            });
+            const saveObj = { state, attempts, customTexts };
+            localStorage.setItem('irn_planner_save', JSON.stringify(saveObj));
+            alert("¡Progreso guardado exitosamente en tu navegador!");
+        }
+
+        function loadProgress() {
+            const saved = localStorage.getItem('irn_planner_save');
+            if (saved) {
+                try {
+                    const dataObj = JSON.parse(saved);
+                    Object.keys(state).forEach(k => delete state[k]);
+                    Object.assign(state, dataObj.state || {});
+                    Object.keys(attempts).forEach(k => delete attempts[k]);
+                    Object.assign(attempts, dataObj.attempts || {});
+
+                    if (dataObj.customTexts) {
+                        Object.entries(dataObj.customTexts).forEach(([id, val]) => {
+                            const el = document.querySelector(`[data-id="${id}"]`);
+                            if (el) el.value = val;
+                        });
+                    }
+                    updateAll();
+                    alert("¡Progreso cargado con éxito!");
+                } catch(e) {
+                    alert("Error al cargar los datos guardados.");
+                }
+            } else {
+                alert("No se encontró ningún progreso guardado.");
+            }
+        }
+
+        function resetProgress() {
+            if (confirm("¿Estás seguro de que deseas reiniciar toda la malla? Se borrarán tus notas y estados.")) {
+                Object.keys(state).forEach(k => delete state[k]);
+                Object.keys(attempts).forEach(k => delete attempts[k]);
+                localStorage.removeItem('irn_planner_save');
+                location.reload();
+            }
+        }
+
+        const planner = document.getElementById('planner');
+        const semestresKeys = Object.keys(data);
+
+        semestresKeys.forEach((sem, idx) => {
+            const col = document.createElement('div');
+            col.className = "flex flex-col gap-2";
+            col.innerHTML = `<div class="bg-[#db2777] text-white text-center py-2 px-1 font-bold rounded-lg text-xs shadow-sm">Sem. ${sem}</div>`;
+            
+            data[sem].forEach(m => {
+                const [nombre, sigla, creds, prereqs] = m;
+                const isEditable = nombre.includes("MINOR") || nombre.includes("Form.") || nombre.includes("Filosofía");
+                const box = document.createElement('div');
+                
+                box.className = "subject-box";
+                box.dataset.sigla = sigla;
+                box.dataset.semIndex = idx;
+                box.dataset.prereqs = JSON.stringify(prereqs);
+
+                box.onclick = (e) => {
+                    if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+                    if (box.classList.contains('bloqueado')) return;
+
+                    if (!state[sigla] || state[sigla] === '') {
+                        state[sigla] = 'aprobado';
+                    } else if (state[sigla] === 'aprobado') {
+                        state[sigla] = 'reprobado';
+                    } else {
+                        state[sigla] = '';
+                    }
+                    updateAll();
+                };
+
+                const inputIdName = `n-${sigla}-${idx}`;
+                const inputIdCode = `c-${sigla}-${idx}`;
+
+                box.innerHTML = `
+                    <input type="text" value="${nombre}" class="cell-input" data-id="${inputIdName}" ${isEditable ? "" : "readonly"}>
+                    <div class="my-1">
+                        <input type="text" value="${sigla}" class="cell-code font-bold text-gray-800" data-id="${inputIdCode}" ${isEditable ? "" : "readonly"}>
+                        <div class="text-[10px] text-gray-600 font-bold text-center mt-0.5">cr: ${creds}</div>
+                    </div>
+                    <button class="nota-btn" onclick="openModal('${sigla}', event)">Nota</button>
+                `;
+                col.appendChild(box);
+            });
+
+            planner.appendChild(col);
+
+            if (idx === 7) {
+                const div = document.createElement('div');
+                div.className = "divider-col shadow-inner";
+                div.innerText = "LICENCIATURA EN RRNN";
+                planner.appendChild(div);
+            }
+        });
+
+        updateAll();
+    </script>
+</body>
+</html>
